@@ -7,7 +7,7 @@
 
 # Use NVIDIA CUDA as base image and run the same installation as in the other packages.
 # The version of cuda must match those of the packages installed in src/Dockerfile.gpulibs
-FROM nvidia/cuda:11.6.2-cudnn8-runtime-ubuntu20.04
+FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 LABEL authors="Christoph Schranz <christoph.schranz@salzburgresearch.at>, Mathematical Michael <consistentbayes@gmail.com>"
 # This is a concatenated Dockerfile, the maintainers of subsequent sections may vary.
 RUN chmod 1777 /tmp && chmod 1777 /var/tmp
@@ -88,8 +88,8 @@ RUN chmod a+rx /usr/local/bin/fix-permissions
 # Enable prompt color in the skeleton .bashrc before creating the default NB_USER
 # hadolint ignore=SC2016
 RUN sed -i 's/^#force_color_prompt=yes/force_color_prompt=yes/' /etc/skel/.bashrc && \
-   # Add call to conda init script see https://stackoverflow.com/a/58081608/4413446
-   echo 'eval "$(command conda shell.bash hook 2> /dev/null)"' >> /etc/skel/.bashrc
+    # Add call to conda init script see https://stackoverflow.com/a/58081608/4413446
+    echo 'eval "$(command conda shell.bash hook 2> /dev/null)"' >> /etc/skel/.bashrc
 
 # Create NB_USER with name jovyan user with UID=1000 and in the 'users' group
 # and make sure these dirs are writable by the `users` group.
@@ -128,25 +128,25 @@ WORKDIR /tmp
 RUN set -x && \
     arch=$(uname -m) && \
     if [ "${arch}" = "x86_64" ]; then \
-        # Should be simpler, see <https://github.com/mamba-org/mamba/issues/1437>
-        arch="64"; \
+    # Should be simpler, see <https://github.com/mamba-org/mamba/issues/1437>
+    arch="64"; \
     fi && \
     wget -qO /tmp/micromamba.tar.bz2 \
-        "https://micromamba.snakepit.net/api/micromamba/linux-${arch}/latest" && \
+    "https://micromamba.snakepit.net/api/micromamba/linux-${arch}/latest" && \
     tar -xvjf /tmp/micromamba.tar.bz2 --strip-components=1 bin/micromamba && \
     rm /tmp/micromamba.tar.bz2 && \
     PYTHON_SPECIFIER="python=${PYTHON_VERSION}" && \
     if [[ "${PYTHON_VERSION}" == "default" ]]; then PYTHON_SPECIFIER="python"; fi && \
     # Install the packages
     ./micromamba install \
-        --root-prefix="${CONDA_DIR}" \
-        --prefix="${CONDA_DIR}" \
-        --yes \
-        "${PYTHON_SPECIFIER}" \
-        'mamba' \
-        'notebook' \
-        'jupyterhub' \
-        'jupyterlab' && \
+    --root-prefix="${CONDA_DIR}" \
+    --prefix="${CONDA_DIR}" \
+    --yes \
+    "${PYTHON_SPECIFIER}" \
+    'mamba' \
+    'notebook' \
+    'jupyterhub' \
+    'jupyterlab' && \
     rm micromamba && \
     # Pin major.minor version of python
     mamba list python | grep '^python ' | tr -s ' ' | cut -d ' ' -f 1,2 >> "${CONDA_DIR}/conda-meta/pinned" && \
@@ -300,7 +300,7 @@ RUN mamba install --quiet --yes \
 # Install facets which does not have a pip or conda package at the moment
 WORKDIR /tmp
 RUN git clone https://github.com/PAIR-code/facets.git && \
-    jupyter nbextension install facets/facets-dist/ --sys-prefix && \
+    #    jupyter nbextension install facets/facets-dist/ --sys-prefix && \
     rm -rf /tmp/facets && \
     fix-permissions "${CONDA_DIR}" && \
     fix-permissions "/home/${NB_USER}"
@@ -326,7 +326,7 @@ LABEL maintainer="Christoph Schranz <christoph.schranz@salzburgresearch.at>, Mat
 # installation via conda leads to errors in version 4.8.2
 USER ${NB_UID}
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir tensorflow==2.10.1 keras==2.10 && \
+    pip install --no-cache-dir tensorflow==2.14.0 keras==2.14 && \
     fix-permissions "${CONDA_DIR}" && \
     fix-permissions "/home/${NB_USER}"
 
@@ -343,15 +343,14 @@ RUN conda install --quiet --yes \
 # RUN pip install --no-cache-dir torch==1.13.1 torchvision==0.14.1 torchaudio==0.13.1  && \
 #     torchviz==0.0.2 --extra-index-url https://download.pytorch.org/whl/cu116
 RUN set -ex \
- && buildDeps=' \
-    torch==1.13.1 \
-    torchvision==0.14.1 \
-    torchaudio==0.13.1 \
+    && buildDeps=' \
+    torch==2.1.0 \
+    torchvision==0.16.0 \
     torchviz==0.0.2 \
-' \
- && pip install --no-cache-dir $buildDeps --extra-index-url https://download.pytorch.org/whl/cu116 \
- && fix-permissions "${CONDA_DIR}" \
- && fix-permissions "/home/${NB_USER}"
+    ' \
+    && pip install --no-cache-dir $buildDeps --extra-index-url https://download.pytorch.org/whl/cu116 \
+    && fix-permissions "${CONDA_DIR}" \
+    && fix-permissions "/home/${NB_USER}"
 
 USER root
 ENV CUDA_PATH=/opt/conda/
@@ -373,36 +372,38 @@ RUN ln -s /opt/conda/bin/ptxas /usr/bin/ptxas
 
 USER $NB_UID
 
-  ############################################################################
-  ############################ Useful packages ###############################
-  ############################################################################
-  
+############################################################################
+############################ Useful packages ###############################
+############################################################################
+
 LABEL authors="Christoph Schranz <christoph.schranz@salzburgresearch.at>, Mathematical Michael <consistentbayes@gmail.com>"
 
 USER root
 
 # Install useful packages and Graphviz
 RUN apt-get update \
- && apt-get -y install --no-install-recommends htop apt-utils iputils-ping graphviz libgraphviz-dev openssh-client \
- && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get -y install --no-install-recommends htop apt-utils iputils-ping graphviz libgraphviz-dev openssh-client \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 USER $NB_UID
 RUN set -ex \
- && buildDeps=' \
+    && buildDeps=' \
     graphviz==0.19.1 \
     pytest==7.2.2 \
-' \
- && pip install --no-cache-dir $buildDeps \
- && fix-permissions "${CONDA_DIR}" \
- && fix-permissions "/home/${NB_USER}"
+    wandb==0.15.12 \
+    transformers==4.34.0 \
+    ' \
+    && pip install --no-cache-dir $buildDeps \
+    && fix-permissions "${CONDA_DIR}" \
+    && fix-permissions "/home/${NB_USER}"
 
 # upgrade jupyter-server for compatibility
 RUN pip install --no-cache-dir --upgrade \
     distributed==2023.3.0 \
     jupyter-server==2.4 \
     # fix permissions of conda
- && fix-permissions "${CONDA_DIR}" \
- && fix-permissions "/home/${NB_USER}"
+    && fix-permissions "${CONDA_DIR}" \
+    && fix-permissions "/home/${NB_USER}"
 
 RUN pip install --no-cache-dir \
     # install extension manager
